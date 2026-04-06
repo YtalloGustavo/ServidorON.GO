@@ -10,7 +10,10 @@ services:
       context: ./backend
       dockerfile: ./Dockerfile
     environment:
+      - NODE_ENV=production
       - DB_HOST=mysql
+      - DB_DIALECT=mysql
+      - DB_PORT=3306
       - DB_USER=root
       - DB_PASS=${MYSQL_ROOT_PASSWORD:-strongpassword}
       - DB_NAME=${MYSQL_DATABASE:-whaticket}
@@ -20,18 +23,31 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - PROXY_PORT=${PROXY_PORT:-8080}
       - CHROME_ARGS=--no-sandbox --disable-setuid-sandbox
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - WHAILEYS_LOG_LEVEL=${WHAILEYS_LOG_LEVEL:-error}
+      # WhatsApp Provider: wwebjs | whaileys | evolution
+      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-whaileys}
+      # Evolution API (apenas necessário se WHATSAPP_PROVIDER=evolution)
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL:-}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-}
+      # Redis
+      - IO_REDIS_SERVER=redis
+      - IO_REDIS_PORT=6379
+      - IO_REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - IO_REDIS_DB_SESSION=2
     ports:
       - ${BACKEND_PORT:-8080}:3000
     volumes:
       - ./backend/public/:/usr/src/app/public/
       - ./backend/.wwebjs_auth/:/usr/src/app/.wwebjs_auth/
+    depends_on:
+      - mysql
+      - redis
+    restart: always
     networks:
       - whaticket
 
   frontend:
-    ports:
-      - ${FRONTEND_PORT:-3000}:80
-      - ${FRONTEND_SSL_PORT:-3001}:443
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
@@ -40,23 +56,41 @@ services:
       - REACT_APP_BACKEND_URL=${BACKEND_URL:-http://localhost}:${PROXY_PORT:-8080}/
       - FRONTEND_SERVER_NAME=${FRONTEND_SERVER_NAME}
       - BACKEND_SERVER_NAME=${BACKEND_SERVER_NAME}
+    ports:
+      - ${FRONTEND_PORT:-3000}:80
+      - ${FRONTEND_SSL_PORT:-3001}:443
     volumes:
       - ./ssl/certs/:/etc/nginx/ssl/
       - ./ssl/www/:/var/www/letsencrypt/
+    depends_on:
+      - backend
+    restart: always
     networks:
       - whaticket
 
   mysql:
     image: ${MYSQL_ENGINE:-mariadb}:${MYSQL_VERSION:-10.6}
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin    
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
     volumes:
       - ./.docker/data/:/var/lib/mysql
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-whaticket}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-strongpassword}
-      - TZ=${TZ:-America/Fortaleza}
+      - TZ=${TZ:-America/Sao_Paulo}
     ports:
       - ${MYSQL_PORT:-3306}:3306
+    restart: always
+    networks:
+      - whaticket
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      sh -c "if [ -n '$$REDIS_PASSWORD' ]; then redis-server --requirepass $$REDIS_PASSWORD; else redis-server; fi"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    volumes:
+      - ./.docker/redis/:/data
     restart: always
     networks:
       - whaticket
