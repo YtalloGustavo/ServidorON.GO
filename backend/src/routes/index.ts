@@ -11,8 +11,12 @@ import whatsappSessionRoutes from "./whatsappSessionRoutes";
 import queueRoutes from "./queueRoutes";
 import quickAnswerRoutes from "./quickAnswerRoutes";
 import apiRoutes from "./apiRoutes";
+import webhookRoutes from "./webhookRoutes";
 
 const routes = Router();
+
+// Public route — must be registered before authenticated routes
+routes.use("/webhook", webhookRoutes);
 
 routes.use(userRoutes);
 routes.use("/auth", authRoutes);
